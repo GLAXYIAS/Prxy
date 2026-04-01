@@ -3,7 +3,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 
-// Beautiful dark homepage (similar to your screenshot)
+// Beautiful dark homepage (same nice look as before)
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -28,11 +28,7 @@ app.get('/', (req, res) => {
           overflow: hidden;
         }
 
-        .container {
-          text-align: center;
-          z-index: 10;
-        }
-
+        .container { text-align: center; }
         h1 {
           font-size: 3.5rem;
           font-weight: 600;
@@ -41,12 +37,7 @@ app.get('/', (req, res) => {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
-
-        p {
-          font-size: 1.1rem;
-          color: #a1a1aa;
-          margin-bottom: 2rem;
-        }
+        p { font-size: 1.1rem; color: #a1a1aa; margin-bottom: 2rem; }
 
         .search-bar {
           width: 620px;
@@ -63,29 +54,12 @@ app.get('/', (req, res) => {
           border: 1px solid rgba(255, 255, 255, 0.15);
           border-radius: 9999px;
           color: white;
-          backdrop-filter: blur(12px);
-        }
-
-        input::placeholder {
-          color: #71717a;
         }
 
         input:focus {
           outline: none;
           border-color: #6366f1;
           box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
-        }
-
-        .shortcut {
-          position: absolute;
-          right: 20px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: rgba(255,255,255,0.1);
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.85rem;
-          color: #a1a1aa;
         }
 
         .footer {
@@ -102,7 +76,6 @@ app.get('/', (req, res) => {
         
         <form action="/proxy" method="get" class="search-bar">
           <input type="text" name="url" placeholder="Search or enter URL..." autocomplete="off" autofocus required>
-          <div class="shortcut">⏎</div>
         </form>
 
         <div class="footer">
@@ -114,34 +87,42 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Proxy logic - handles the actual browsing
-app.use('/proxy', createProxyMiddleware({
-  target: 'https://example.com', // dummy target
-  changeOrigin: true,
-  selfHandleResponse: true,
-  onProxyReq: (proxyReq, req) => {
-    let url = req.query.url;
-    if (!url) return;
+// Improved Proxy Route - Much more stable
+app.get('/proxy', (req, res) => {
+  let targetUrl = req.query.url;
 
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url;
-    }
-    proxyReq.url = url;
-    proxyReq.host = new URL(url).host;
-  },
-  onProxyRes: (proxyRes) => {
-    delete proxyRes.headers['x-frame-options'];
-    delete proxyRes.headers['content-security-policy'];
-    delete proxyRes.headers['strict-transport-security'];
+  if (!targetUrl) {
+    return res.redirect('/');
   }
-}));
 
-// Redirect everything else to home
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  // Create a fresh proxy for each request (this fixes the common error)
+  const proxy = createProxyMiddleware({
+    target: targetUrl,
+    changeOrigin: true,
+    secure: false,                    // Allow http targets too
+    selfHandleResponse: false,        // Simpler and more reliable
+    followRedirects: true,
+    onProxyRes: (proxyRes) => {
+      // Remove headers that often break proxied sites
+      delete proxyRes.headers['x-frame-options'];
+      delete proxyRes.headers['content-security-policy'];
+      delete proxyRes.headers['strict-transport-security'];
+    }
+  });
+
+  proxy(req, res);
+});
+
+// Catch all other routes → go back to home
 app.get('*', (req, res) => {
   res.redirect('/');
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Dark Web Proxy running on port ${PORT}`);
+  console.log(`✅ Dark Web Proxy running on port ${PORT}`);
 });
